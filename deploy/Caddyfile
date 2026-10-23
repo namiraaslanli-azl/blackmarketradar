@@ -1,0 +1,15 @@
+# TLS is automatic when SITE_ADDRESS is a domain name (radar.example.az).
+# Basic auth protects the whole tool until Phase 5 adds user accounts and roles.
+{$SITE_ADDRESS} {
+	encode gzip
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+	header {
+		X-Robots-Tag "noindex, nofollow"
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+	reverse_proxy web:3000
+}

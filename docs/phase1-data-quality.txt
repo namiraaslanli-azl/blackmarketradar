@@ -1,0 +1,29 @@
+DATA QUALITY REPORT
+============================================================
+Import #1 seed_csv findings_seed.csv
+  rows read 1128 · created 1124 · merged into existing 3
+  duplicates removed in this file: 3 (+148 merged before export)
+  skipped (no usable URL): 1
+  fixes: url_repaired 1, landing_not_url_kept_raw 56, link_rebuilt_from_username 13, fixed_excel_formula_username 3
+
+Findings: 1222  app_store_app=2  facebook_page=4  instagram_account=31  instagram_post=7  meta_ad=235  organic_domain=725  play_store_app=58  telegram_channel=50  tiktok_account=110
+Status:   blocked=183  confirmed=810  new=177  reported=52
+Operators assigned: 307
+
+Domains: 725
+  hosting/registrar/abuse from workbook: 17
+  network-enriched (RDAP, DNS, CF, screenshot): 0  · waiting: 725
+  category from workbook: 16  · suggested by rules: 509
+  impersonation alerts: 5
+
+Derived findings (ad landings, links in text): 98
+Links: ad_cluster=223  app_package=50  landing=142  mentions_domain=62  operator=307  promo_code=13  telegram_link=3
+
+Needs review: 192
+  derived_from_ad_landing: 69
+  telegram_unverified: 48
+  derived_from_text: 42
+  play_store_unverified: 31
+  licensed_brand_mentioned_check: 10
+  metadata_missing: 8
+  moved_from_app_store_sheet: 2

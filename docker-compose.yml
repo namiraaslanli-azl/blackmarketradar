@@ -1,0 +1,78 @@
+# Black Market Radar — single-VPS stack.  `docker compose up -d --build`
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://radar:${POSTGRES_PASSWORD}@db:5432/radar
+    REDIS_URL: redis://redis:6379/0
+    EVIDENCE_DIR: /data/evidence
+  volumes:
+    - evidence:/data/evidence
+    - ./data/import:/data/import:ro
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_started }
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: radar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: radar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radar"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  api:
+    <<: *backend
+    command: sh -c "radar migrate && radar seed && uvicorn radar.api.main:app --host 0.0.0.0 --port 8000 --workers 2"
+
+  worker:
+    <<: *backend
+    command: celery -A radar.tasks worker -Q celery,enrich --concurrency=${WORKER_CONCURRENCY:-4} --loglevel=INFO
+    shm_size: 1gb  # Chromium
+
+  beat:
+    <<: *backend
+    command: celery -A radar.tasks beat --loglevel=INFO --schedule /tmp/celerybeat-schedule
+
+  web:
+    build: ./web
+    environment:
+      API_URL: http://api:8000
+      API_TOKEN: ${API_TOKEN}
+    depends_on: [api]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  evidence:
+  caddydata:
