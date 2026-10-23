@@ -4,7 +4,7 @@
 OPERATORS: list[tuple[str, str, list[str], bool]] = [
     ("azerlotereya", "Azerlotereya", ["azerlotereya", "azərlotereya", "azerlottery", "misli"], True),
     ("topaz", "Topaz / Etopaz", ["topaz", "etopaz"], True),
-    ("tfc", "TFC", ["tfc"], True),
+    ("tfc", "TFC", ["tfc"], True),  # no official domains (confirmed); matched by brand name only
     ("pin-up", "Pin-Up", ["pinup", "pin-up", "pin up", "pinupcasino", "pin-up.az", "пинап"], False),
     ("mostbet", "Mostbet", ["mostbet", "mosbet", "mostbett", "мостбет"], False),
     ("1win", "1win", ["1win", "1вин", "1wn"], False),
@@ -24,6 +24,9 @@ OPERATORS: list[tuple[str, str, list[str], bool]] = [
     ("wepari", "Wepari", ["wepari"], False),
     ("aslan-kazino", "Aslan Kazino", ["aslan kazino", "aslankazino", "aslancasino"], False),
     ("neon-club", "Neon Club", ["neon club", "neonclub"], False),
+    # black-market lottery product, not Azerlotereya's (confirmed by the monitoring team)
+    ("10-line-loto", "10 Line Loto", ["10lineloto", "10 line loto", "10-line-loto", "10line-loto", "10-lineloto"],
+     False),
     ("jetwin", "Jetwin", ["jetwin"], False),
     ("22bet", "22Bet", ["22bet"], False),
 ]
@@ -83,6 +86,7 @@ KEYWORDS: list[tuple[str, str, str]] = [
     ("slot oyunları real pul", "game", "az"), ("aviator oyunu real pul", "game", "az"),
     ("ruletka onlayn", "game", "az"), ("idman mərcləri onlayn", "generic", "az"),
     ("free spin azerbaycan", "promo", "az"),
+    ("10 line loto", "brand", ""), ("10lineloto", "brand", ""),
 ]
 
 # Payment-rail vocabulary (Phase 5 aggregates these; extraction starts now)

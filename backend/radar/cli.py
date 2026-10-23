@@ -74,7 +74,7 @@ def _finish_import(s, batch) -> None:
 
 @app.command("import-seed")
 def import_seed(path: Path, seen_at: str = typer.Option(None, help="ISO date to use as first_seen when a row has none")) -> None:
-    """Import the normalized findings CSV."""
+    """Import the normalized findings seed (.csv or .xlsx with a "Findings" sheet)."""
     from radar.importers.seed_csv import import_seed_csv
 
     with session_scope() as s:

@@ -77,7 +77,7 @@ The whole site is behind basic auth until Phase 5 adds user accounts with roles.
 
 | Command | What it does |
 |---|---|
-| `radar import-seed FILE.csv` | Import the normalized findings CSV |
+| `radar import-seed FILE.csv|.xlsx` | Import the normalized findings seed (CSV, or Excel with a "Findings" sheet) |
 | `radar import-workbook FILE.xlsx` | Import the original weekly workbook (all sheets) |
 | `radar import-apify FILE...` | Import Apify dataset exports (JSON / JSONL / CSV) |
 | `radar link` | Re-run operator matching, mirror patterns, impersonation, ad clustering |

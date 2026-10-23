@@ -193,7 +193,29 @@ def import_rows(session: Session, rows: Iterable[dict], *, kind: str, filename: 
     return batch
 
 
+def read_seed_xlsx(path: Path) -> list[dict]:
+    """The same seed as an Excel workbook: rows live on the "Findings" sheet; other sheets are summaries."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = next((wb[n] for n in wb.sheetnames if n.strip().lower() == "findings"), None)
+    if ws is None:
+        raise ValueError(f"{path.name}: no 'Findings' sheet")
+    rows = ws.iter_rows(values_only=True)
+    header = [str(h).strip() if h is not None else "" for h in next(rows)]
+    out = []
+    for r in rows:
+        rec = {h: ("" if v is None else str(v)) for h, v in zip(header, r) if h}
+        if any(rec.values()):
+            out.append(rec)
+    return out
+
+
 def import_seed_csv(session: Session, path: Path, seen_at: datetime | None = None) -> ImportBatch:
-    with open(path, encoding="utf-8-sig", newline="") as fh:
-        rows = list(csv.DictReader(fh))
-    return import_rows(session, rows, kind="seed_csv", filename=path.name, sha256=file_sha256(path), seen_at=seen_at)
+    """Import the normalized seed from .csv or .xlsx (sheet "Findings")."""
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        rows, kind = read_seed_xlsx(path), "seed_xlsx"
+    else:
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            rows, kind = list(csv.DictReader(fh)), "seed_csv"
+    return import_rows(session, rows, kind=kind, filename=path.name, sha256=file_sha256(path), seen_at=seen_at)
