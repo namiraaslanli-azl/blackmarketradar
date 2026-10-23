@@ -65,7 +65,7 @@ Domenin DNS A qeydini VPS-in IP-sinə yönləndirin — Caddy TLS sertifikatın�
 
 | Əmr | Nə edir |
 |---|---|
-| `radar import-seed FAYL.csv` | Normallaşdırılmış tapıntılar CSV-sini idxal edir |
+| `radar import-seed FAYL.csv|.xlsx` | Normallaşdırılmış tapıntıları idxal edir (CSV və ya "Findings" vərəqli Excel) |
 | `radar import-workbook FAYL.xlsx` | Həftəlik Excel hesabatını (bütün vərəqlər) idxal edir |
 | `radar import-apify FAYL...` | Apify eksportlarını (JSON / JSONL / CSV) idxal edir |
 | `radar link` | Operator, güzgü domen nümunələri, imitasiya və reklam klasterlərini yenidən hesablayır |

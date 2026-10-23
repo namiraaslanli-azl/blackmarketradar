@@ -22,11 +22,12 @@ def test_mirror_patterns():
     assert "cheap_tld" in host_signals("wepari-46775.pro", ALIASES).patterns
     assert "random_string" in host_signals("2spb2wn41xoimst.com", ALIASES).patterns
     assert "gambling_subdomain" in host_signals("casino.some-college.edu.az", ALIASES).patterns
+    for host in ("10-line-loto.com", "10lineloto2.com", "10linelotoazerbaycan.com", "login.10lineloto.tv"):
+        assert brand(host)[0] == "10-line-loto", host
 
 
 def test_no_brand_noise():
     assert brand("361ramenbet.com") is None
-    assert brand("10linelotoazerbaycan.com") is None
     assert brand("wikipedia.org") is None
 
 

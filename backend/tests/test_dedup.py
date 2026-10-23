@@ -120,3 +120,24 @@ def test_parse_int_counts():
     assert parse_int("1,5M") == 1_500_000
     assert parse_int("12 min") == 12_000
     assert parse_int("n/a") is None
+
+
+def test_seed_xlsx_matches_csv_import(session, tmp_path):
+    from openpyxl import Workbook
+
+    from radar.importers.seed_csv import import_seed_csv
+
+    header = ["finding_id", "url", "source_sheets", "source_rows", "original_status", "status", "tags", "raw_json"]
+    wb = Workbook()
+    wb.active.title = "Xülasə"
+    ws = wb.create_sheet("Findings")
+    ws.append(header)
+    ws.append(["F1", "https://aze.1xbet.com", "Organic Domain", "10", None, "confirmed", None, "{}"])
+    ws.append(["F2", "/https://www.aze.1xbet.com/", "Kohne Tapintilar", "442", "Bloklanıb", "blocked", "historical", "{}"])
+    ws.append([None] * len(header))
+    p = tmp_path / "Qara_Bazar_Import_Seed.xlsx"
+    wb.save(p)
+    batch = import_seed_csv(session, p)
+    assert batch.kind == "seed_xlsx"
+    assert batch.report["rows_read"] == 2 and batch.report["created"] == 1
+    assert session.scalar(select(Finding)).status == "blocked"
