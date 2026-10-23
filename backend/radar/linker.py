@@ -99,6 +99,17 @@ def _text_signature(text: str | None) -> frozenset[str]:
     return frozenset(" ".join(words[i:i + 3]) for i in range(max(0, len(words) - 2)))
 
 
+def _hamming(a: str, b: str) -> int:
+    try:
+        return bin(int(a, 16) ^ int(b, 16)).count("1")
+    except ValueError:
+        return 64
+
+
+def _ocr_text(f: Finding) -> str:
+    return " ".join(i.get("text", "") for i in (f.enrichment or {}).get("ocr", {}).get("images", []))
+
+
 def cluster_ads(session: Session, ads: list[Finding], report: LinkReport, threshold: float = 0.6) -> None:
     """Union-find over ads sharing a landing target or near-identical creative text."""
     parent = {a.id: a.id for a in ads}
@@ -126,7 +137,18 @@ def cluster_ads(session: Session, ads: list[Finding], report: LinkReport, thresh
     for ids in by_target.values():
         for other in ids[1:]:
             union(ids[0], other)
-    sigs = [(a.id, _text_signature(a.text)) for a in ads if a.text]
+    # same creative image (perceptual hash, hamming distance <= 6) → same campaign
+    ad_ids = [a.id for a in ads]
+    hashes = session.execute(select(Link.src_id, Link.value).where(
+        Link.link_type == "image_hash", Link.src_id.in_(ad_ids))).all() if ad_ids else []
+    by_hash: dict[str, int] = {}
+    for src, value in hashes:
+        for seen_value, seen_src in by_hash.items():
+            if _hamming(value, seen_value) <= 6:
+                union(src, seen_src)
+        by_hash.setdefault(value, src)
+    sigs = [(a.id, _text_signature(a.text + " " + _ocr_text(a)) if a.text else _text_signature(_ocr_text(a)))
+            for a in ads if a.text or _ocr_text(a)]
     for i, (ia, sa) in enumerate(sigs):
         if len(sa) < 3:
             continue
@@ -145,7 +167,15 @@ def cluster_ads(session: Session, ads: list[Finding], report: LinkReport, thresh
             add_link(session, m, "ad_cluster", value=label)
 
 
-def run_linker(session: Session, findings: list[Finding] | None = None) -> LinkReport:
+def recluster_ads(session: Session, report: LinkReport | None = None) -> LinkReport:
+    report = report or LinkReport()
+    ads = list(session.scalars(select(Finding).where(Finding.source == "meta_ad")))
+    session.execute(Link.__table__.delete().where(Link.link_type == "ad_cluster", Link.value.like("AC%")))
+    cluster_ads(session, ads, report)
+    return report
+
+
+def run_linker(session: Session, findings: list[Finding] | None = None, *, cluster: bool = True) -> LinkReport:
     report = LinkReport()
     aliases, op_ids = operator_index(session)
     licensed_slugs = set(session.scalars(select(Operator.slug).where(Operator.is_licensed)))
@@ -161,7 +191,8 @@ def run_linker(session: Session, findings: list[Finding] | None = None) -> LinkR
     for f in findings:
         report.processed += 1
         tags = list(f.tags or [])
-        text_blob = " ".join(filter(None, [f.title, f.text, f.handle, f.advertiser]))
+        # OCR text counts: illegal ads often hide the gambling words inside the image
+        text_blob = " ".join(filter(None, [f.title, f.text, f.handle, f.advertiser, _ocr_text(f)]))
 
         # operator from analyst-entered brands, then host, then text
         slug = None
@@ -251,8 +282,7 @@ def run_linker(session: Session, findings: list[Finding] | None = None) -> LinkR
                 report.categories_suggested += 1
         f.tags = list(dict.fromkeys(tags))
 
-    ads = list(session.scalars(select(Finding).where(Finding.source == "meta_ad")))
-    session.execute(Link.__table__.delete().where(Link.link_type == "ad_cluster", Link.value.like("AC%")))
-    cluster_ads(session, ads, report)
+    if cluster:
+        recluster_ads(session, report)
     session.flush()
     return report

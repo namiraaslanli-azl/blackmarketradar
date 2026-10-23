@@ -143,6 +143,74 @@ def enrich(
 
 
 @app.command()
+def collectors() -> None:
+    """List collectors, schedule, enabled state and missing secrets."""
+    from radar.collectors import REGISTRY
+    from radar.collectors.base import effective_params
+
+    with session_scope() as s:
+        for name, c in REGISTRY.items():
+            enabled, _ = effective_params(s, c)
+            missing = c.missing_secrets()
+            typer.echo(f"{name:14} {'on ' if enabled else 'off'}  {c.schedule}  "
+                       f"{'needs ' + ', '.join(missing) if missing else 'ready'}")
+
+
+@app.command()
+def collect(name: str, param: list[str] = typer.Option([], "--param", "-p", help="key=value override (JSON values ok)"),
+            force: bool = typer.Option(False, help="run even if disabled")) -> None:
+    """Run one collector now, e.g. `radar collect ct_crtsh -p days=1`."""
+    from radar.collectors import run_collector
+
+    override = {}
+    for kv in param:
+        k, _, v = kv.partition("=")
+        try:
+            override[k] = json.loads(v)
+        except json.JSONDecodeError:
+            override[k] = v
+    typer.echo(json.dumps(run_collector(name, override, force=force), ensure_ascii=False, indent=2))
+
+
+@app.command()
+def certstream(flush_seconds: int = 60) -> None:
+    """Consume the live CertStream feed forever (run as its own service)."""
+    from radar.collectors.ct import certstream_loop
+
+    certstream_loop(flush_seconds=flush_seconds)
+
+
+@app.command("telegram-login")
+def telegram_login(phone: str = typer.Option(..., prompt="Telegram phone (+994...)")) -> None:
+    """One-time interactive login of the dedicated Telegram account; stores the session file."""
+    import asyncio
+    import os
+
+    from radar.collectors.telegram import interactive_login
+    from radar.config import get_settings
+
+    session = asyncio.run(interactive_login(phone))
+    path = get_settings().telegram_session_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session)
+    os.chmod(path, 0o600)
+    typer.echo(f"saved session to {path}")
+
+
+@app.command()
+def track(kind: str, value: str, note: str = typer.Option(None)) -> None:
+    """Add a tracked account / page / channel / hashtag, e.g. `radar track tiktok_account kod_satisi`."""
+    from radar.models import TARGET_KINDS, TrackedTarget
+
+    if kind not in TARGET_KINDS:
+        raise typer.BadParameter(f"kind must be one of {', '.join(TARGET_KINDS)}")
+    with session_scope() as s:
+        s.execute(pg_insert(TrackedTarget).values(kind=kind, value=value.strip().lstrip("@#"), note=note)
+                  .on_conflict_do_nothing(constraint="uq_tracked_kind_value"))
+    typer.echo("ok")
+
+
+@app.command()
 def report(as_json: bool = typer.Option(False, "--json")) -> None:
     """Print the data-quality report."""
     from radar.quality import format_report, quality_report

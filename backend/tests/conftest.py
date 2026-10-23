@@ -29,7 +29,8 @@ def session(engine):
 
     with engine.begin() as conn:
         tables = ", ".join(t for t in ("links", "evidence", "finding_events", "findings", "import_batches",
-                                       "collector_runs", "keywords", "whitelist", "operators"))
+                                       "collector_runs", "keywords", "whitelist", "operators",
+                                       "tracked_targets", "collector_config"))
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
     s = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_reference(s)
@@ -37,3 +38,19 @@ def session(engine):
     yield s
     s.rollback()
     s.close()
+
+
+@pytest.fixture
+def app_db(session, monkeypatch, tmp_path):
+    """Point code that opens its own sessions (collectors, run logging) at the test database."""
+    from radar.config import get_settings
+    from radar.db import get_engine
+
+    monkeypatch.setenv("DATABASE_URL", TEST_DB)
+    monkeypatch.setenv("EVIDENCE_DIR", str(tmp_path / "evidence"))
+    monkeypatch.setenv("TELEGRAM_SESSION_PATH", str(tmp_path / "tg.session"))
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    yield session
+    get_settings.cache_clear()
+    get_engine.cache_clear()

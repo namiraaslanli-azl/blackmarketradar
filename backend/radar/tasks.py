@@ -24,6 +24,15 @@ celery.conf.update(
     },
 )
 
+def _collector_schedule() -> dict:
+    from radar.collectors import REGISTRY
+
+    return {f"collect-{name}": {"task": "radar.tasks.collect", "args": [name], "schedule": crontab(**c.schedule)}
+            for name, c in REGISTRY.items() if c.schedule}
+
+
+celery.conf.beat_schedule.update(_collector_schedule())
+
 RETRY = dict(autoretry_for=(Exception,), retry_backoff=30, retry_backoff_max=1800, retry_jitter=True, max_retries=5)
 
 
@@ -62,3 +71,15 @@ def relink() -> dict:
         stats.found = rep.processed
         stats.new = sum(rep.derived_created.values())
         return rep.as_dict()
+
+
+@celery.task(name="radar.tasks.collect", bind=True, max_retries=3, acks_late=True)
+def collect(self, name: str, force: bool = False) -> dict:
+    """Run one collector. Item-level errors are logged in collector_runs; a whole-run failure
+    (provider outage, network) retries with backoff: 5 min, 20 min, 80 min."""
+    from radar.collectors import run_collector
+
+    try:
+        return run_collector(name, force=force)
+    except Exception as exc:  # noqa: BLE001
+        raise self.retry(exc=exc, countdown=300 * 4**self.request.retries)

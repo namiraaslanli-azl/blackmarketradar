@@ -16,10 +16,38 @@ Azərbaycan dilində: [README.az.md](README.az.md) · Architecture: [docs/ARCHIT
 
 ## Status
 
-**Phase 1 (foundation) is done:** schema, deduplication, importers (seed CSV, original
-workbook, Apify exports), offline linker, enrichment worker, data-quality report,
-dashboard shell, Docker Compose. Phases 2–5 (collectors, AI classification, full
-dashboard, leadership features) are next.
+**Phase 1 (foundation) and Phase 2 (collectors) are done.** Phases 3–5 (AI classification
+with review queue, full dashboard, leadership features) are next.
+
+## Collectors
+
+| Name | Source | Needs | Default schedule (Baku) |
+|---|---|---|---|
+| `ct_crtsh` | crt.sh certificate search for every operator alias and protected brand | — | every 6 h |
+| `certstream` | live CertStream feed (own service, runs continuously) | — | continuous |
+| `serp_google` | Google via SerpAPI, gl=az, in az / ru / tr / en, rotating queries | `SERP_API_KEY` | 06:10, 14:10 |
+| `meta_ads` | Meta Ads Library (AZ) via Apify: keywords + tracked pages, OCR + image hash | `APIFY_TOKEN` | 07:35, 19:35 |
+| `tiktok` | TikTok via Apify: hashtags, search, tracked + known accounts | `APIFY_TOKEN` | 08:50, 20:50 |
+| `instagram` | Instagram via Apify: account search, bios, hashtag + account posts | `APIFY_TOKEN` | 09:05, 21:05 |
+| `facebook` | Facebook page posts via Apify | `APIFY_TOKEN` | 10:25 |
+| `telegram` | Telethon: channel search, new posts, invite links | `TELEGRAM_API_ID/HASH` + login | every 2 h |
+| `stores` | Play Store + App Store (AZ): search, re-check known apps, disguised games | — | 11:15 |
+
+Every collector reads the keyword list and tracked accounts from **Ayarlar**, skips the
+licensed whitelist, logs each run to `collector_runs` (visible in **Kollektorlar**, with
+"İndi işə sal" and on/off), and retries with exponential backoff. A collector without its
+key is recorded as *skipped* rather than failing. Parameters (limits, actor IDs) have
+defaults in code and can be overridden per collector via `PUT /api/collectors/{name}`.
+
+```bash
+radar collectors                       # list, schedule, missing secrets
+radar collect ct_crtsh -p days=1       # run one now (with parameter overrides)
+radar track tiktok_account kod_satisi  # add a tracked account (also in Ayarlar)
+```
+
+**Telegram login (once):** with `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` in `.env`, run
+`docker compose run --rm api radar telegram-login`, enter the dedicated account's phone
+number and the code Telegram sends. The session is stored in the `telegram` volume.
 
 ## Local setup
 
@@ -95,17 +123,19 @@ tables, so changes apply on the next run. Seed values live in `backend/radar/see
 
 ## Adding a collector
 
-1. Create `backend/radar/collectors/<name>.py` with a function that yields `FindingIn`
-   objects (see `radar/importers/apify.py:item_to_finding` for Apify-based sources).
-2. Wrap the run in `track_run("<name>")` and write each item with
-   `upsert_finding(session, item, status_policy="keep")` — deduplication, `last_seen`
-   updates and history are handled there. Count `stats.found / new / updated`.
-3. Register a Celery task in `radar/tasks.py` with `**RETRY` (exponential backoff) and a
-   `rate_limit`, and add a `beat_schedule` entry.
-4. Call `run_linker(session, new_findings)` at the end so operators, links and derived
-   findings are created.
+1. Create `backend/radar/collectors/<name>.py` with a subclass of `Collector`:
+   `name`, `title` (Azerbaijani, shown in the UI), `schedule` (crontab kwargs),
+   `defaults` (parameters), `requires` (settings that must be set, e.g. `("apify_token",)`)
+   and `collect(ctx)` yielding `FindingIn` objects. Use `ctx.terms(...)` for keywords,
+   `ctx.targets[...]` for tracked accounts and `ctx.error(...)` for per-item problems.
+   For HTTP use `radar.collectors.http.request` (retries, backoff, per-host pacing); for
+   Apify use `radar.collectors.apify.Apify().run_actor(...)`.
+2. Import the module in `radar/collectors/__init__.py`.
 
-The run then appears in **Kollektorlar** with counts, errors and duration.
+That is all: the framework handles deduplication, whitelist exclusion, run logging,
+linking, the Celery schedule and the UI row. Optional hooks: `after_upsert` (per item,
+e.g. OCR) and `after_run`. Add a test in `backend/tests/test_collectors.py` with the
+external service mocked.
 
 ## Database backup
 

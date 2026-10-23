@@ -48,7 +48,10 @@ LINK_TYPES = (
     "ad_cluster",
     "mentions_domain",
     "linked_account",
+    "image_hash",
 )
+
+TARGET_KINDS = ("meta_page", "tiktok_account", "instagram_account", "facebook_page", "telegram_channel", "hashtag")
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -219,6 +222,36 @@ class WhitelistEntry(Base):
     owner: Mapped[str] = mapped_column(Text)  # Azerlotereya | Topaz | TFC
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TrackedTarget(Base):
+    """Accounts / pages / channels that collectors re-check on every run (editable in Settings)."""
+
+    __tablename__ = "tracked_targets"
+    __table_args__ = (
+        UniqueConstraint("kind", "value", name="uq_tracked_kind_value"),
+        CheckConstraint(_in("kind", TARGET_KINDS), name="ck_tracked_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(24))
+    value: Mapped[str] = mapped_column(Text)  # username / page id / hashtag without '#'
+    note: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    source_finding_id: Mapped[int | None] = mapped_column(ForeignKey("findings.id", ondelete="SET NULL"))
+    last_collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CollectorConfig(Base):
+    """Per-collector switch and parameters; defaults live in code, overrides here."""
+
+    __tablename__ = "collector_config"
+
+    name: Mapped[str] = mapped_column(String(48), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    params: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class CollectorRun(Base):

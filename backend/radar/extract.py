@@ -29,6 +29,9 @@ def extract_urls(text: str | None) -> list[str]:
             continue
         if url and url not in out:
             out.append(url)
+    for url in extract_telegram_links(text):  # "t.me/x" has a one-letter label the generic pattern skips
+        if url not in out:
+            out.append(url)
     for m in _TG_INVITE_BARE.finditer(text or ""):
         url = f"https://t.me/{m.group(0)}"
         if url not in out:
