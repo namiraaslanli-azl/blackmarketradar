@@ -71,23 +71,20 @@ Testlər: `cd backend && pytest` (`radar_test` bazası lazımdır).
 
 ## VPS-ə yerləşdirmə
 
-Hədəf: Ubuntu 24.04, 4 vCPU, 8 GB RAM, 80 GB disk.
+Server: Ubuntu 22.04/24.04, 4 vCPU, 8 GB RAM, 80 GB disk. Əvvəlcə domenin DNS A qeydini serverin
+IP-sinə yönləndirin (Caddy TLS sertifikatını avtomatik alır).
 
 ```bash
-curl -fsSL https://get.docker.com | sh
-git clone <repo> /opt/radar && cd /opt/radar
-cp .env.example .env && nano .env              # şifrələr, SITE_ADDRESS, API açarları
-docker compose run --rm caddy caddy hash-password --plaintext 'şifrəniz'   # → BASIC_AUTH_HASH
-docker compose up -d --build
-
-mkdir -p data/import && cp findings_seed.csv data/import/
-docker compose exec api radar import-seed /data/import/findings_seed.csv
-docker compose exec api radar enrich --queue
-docker compose exec api radar report
+git clone https://github.com/namiraaslanli-azl/blackmarketradar.git /opt/radar && cd /opt/radar
+# istəyə bağlı: tarixi faylı əvvəlcə data/import/ qovluğuna köçürün (öz kompüterinizdən):
+#   scp Qara_Bazar_Import_Seed.xlsx root@SERVER_IP:/opt/radar/data/import/
+sudo bash deploy/install.sh
 ```
 
-Domenin DNS A qeydini VPS-in IP-sinə yönləndirin — Caddy TLS sertifikatını avtomatik alır.
-5-ci mərhələdə istifadəçi hesabları və rollar əlavə olunana qədər bütün sayt şifrə ilə qorunur.
+Skript Docker-i quraşdırır, domeni və giriş şifrəsini soruşur, təsadüfi şifrələrlə `.env` yaradır,
+hər şeyi qurub işə salır, fayl varsa tarixi məlumatı idxal edir, domen zənginləşdirməsini başladır
+və gündəlik ehtiyat nüsxəni qurur. `.env`-ə API açarı əlavə etdikdən və ya `git pull`-dan sonra
+yenidən işə salın — ayarlarınız saxlanılır.
 
 ## Əsas əmrlər
 

@@ -77,29 +77,21 @@ cd backend && pytest
 
 ## Deploying to a VPS
 
-Tested target: Ubuntu 24.04, 4 vCPU, 8 GB RAM, 80 GB disk.
+Target: Ubuntu 22.04/24.04, 4 vCPU, 8 GB RAM, 80 GB disk. Point the domain's DNS A record at
+the server first (Caddy then gets a TLS certificate automatically).
 
 ```bash
-# 1. Docker
-curl -fsSL https://get.docker.com | sh
-
-# 2. Code and secrets
-git clone <repo> /opt/radar && cd /opt/radar
-cp .env.example .env && nano .env              # set passwords, SITE_ADDRESS, API keys
-docker compose run --rm caddy caddy hash-password --plaintext 'your-password'   # → BASIC_AUTH_HASH
-
-# 3. Start (runs migrations and seeds on api start)
-docker compose up -d --build
-
-# 4. Historical data
-mkdir -p data/import && cp findings_seed.csv data/import/
-docker compose exec api radar import-seed /data/import/findings_seed.csv
-docker compose exec api radar enrich --queue     # enrich all domains in the background
-docker compose exec api radar report
+git clone https://github.com/namiraaslanli-azl/blackmarketradar.git /opt/radar && cd /opt/radar
+# optional: copy the historical seed into data/import/ first (from your computer):
+#   scp Qara_Bazar_Import_Seed.xlsx root@SERVER_IP:/opt/radar/data/import/
+sudo bash deploy/install.sh
 ```
 
-Point the domain's DNS A record at the VPS; Caddy gets a TLS certificate automatically.
-The whole site is behind basic auth until Phase 5 adds user accounts with roles.
+The installer installs Docker, asks for the domain and a login password, writes `.env` with
+random secrets, builds and starts everything, imports the seed if present, starts domain
+enrichment and sets up a daily database backup. Re-run it after editing `.env` (e.g. adding
+API keys) or after `git pull`; it keeps your settings. The whole site is behind the login
+until Phase 5 adds user accounts with roles.
 
 ## Everyday commands
 
