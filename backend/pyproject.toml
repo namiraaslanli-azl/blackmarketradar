@@ -20,6 +20,12 @@ dependencies = [
   "mmh3>=4.1",
   "python-dateutil>=2.9",
   "playwright>=1.44",
+  "websockets>=12",
+  "google-play-scraper>=1.2.7",
+  "telethon>=1.36",
+  "pytesseract>=0.3.10",
+  "Pillow>=10.1",
+  "imagehash>=4.3",
 ]
 
 [project.optional-dependencies]

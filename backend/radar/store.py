@@ -22,7 +22,7 @@ _METRIC_FIELDS = ("views", "followers", "subscribers", "likes")
 _FILL_FIELDS = (
     "entity_type", "host", "handle", "title", "text", "landing_url", "landing_raw", "advertiser",
     "published_at", "operator_id", "category", "suggested_action", "original_status", "complaint_status",
-    "is_live", "ai_label", "ai_score", "ai_reason",
+    "ai_label", "ai_score", "ai_reason",
 )
 
 
@@ -156,6 +156,8 @@ def _apply(f: Finding, data: FindingIn, ref: EntityRef, *, is_new: bool, status_
         v = getattr(data, name)
         if v is not None and (getattr(f, name) is None or v > getattr(f, name)):
             setv(name, v)
+    if data.is_live is not None and f.is_live != data.is_live:
+        setv("is_live", data.is_live)  # liveness is an observation: the latest one wins
     if data.enrichment:
         merged = dict(f.enrichment or {})
         for k, v in data.enrichment.items():

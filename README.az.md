@@ -17,9 +17,37 @@ English: [README.md](README.md) · Arxitektura: [docs/ARCHITECTURE.md](docs/ARCH
 
 ## Vəziyyət
 
-**Mərhələ 1 (təməl) hazırdır:** sxem, təkrarların silinməsi, idxal (seed CSV, orijinal
-Excel hesabatı, Apify eksportları), oflayn əlaqələndirici, domen zənginləşdirmə worker-i,
-data keyfiyyəti hesabatı, panelin əsası, Docker Compose. Növbəti: 2–5-ci mərhələlər.
+**1-ci mərhələ (təməl) və 2-ci mərhələ (kollektorlar) hazırdır.** Növbəti: 3–5-ci mərhələlər
+(süni intellektlə təsnifat və yoxlama növbəsi, tam panel, rəhbərlik üçün funksiyalar).
+
+## Kollektorlar
+
+| Ad | Mənbə | Lazımdır | Cədvəl (Bakı) |
+|---|---|---|---|
+| `ct_crtsh` | crt.sh — hər operator və qorunan brend üçün sertifikat axtarışı | — | 6 saatdan bir |
+| `certstream` | Canlı sertifikat axını (ayrıca servis) | — | daim |
+| `serp_google` | Google (SerpAPI), gl=az, az / ru / tr / en | `SERP_API_KEY` | 06:10, 14:10 |
+| `meta_ads` | Meta reklam kitabxanası (AZ), Apify: açar sözlər + izlənən səhifələr, OCR | `APIFY_TOKEN` | 07:35, 19:35 |
+| `tiktok` | TikTok (Apify): hashtag, axtarış, hesablar | `APIFY_TOKEN` | 08:50, 20:50 |
+| `instagram` | Instagram (Apify): hesab axtarışı, bio, postlar | `APIFY_TOKEN` | 09:05, 21:05 |
+| `facebook` | Facebook səhifə postları (Apify) | `APIFY_TOKEN` | 10:25 |
+| `telegram` | Telegram: kanal axtarışı, yeni postlar, dəvət linkləri | `TELEGRAM_API_ID/HASH` + giriş | 2 saatdan bir |
+| `stores` | Play Store + App Store (AZ), maskalanmış oyunlar | — | 11:15 |
+
+Hər kollektor açar sözləri və izlənən hesabları **Ayarlar**-dan oxuyur, ağ siyahını
+keçir, hər işə düşməni **Kollektorlar** bölməsində göstərir ("İndi işə sal", yandır/söndür)
+və xəta olduqda gözləmə ilə təkrar cəhd edir. Açarı olmayan kollektor xəta vermir, "atlandı"
+kimi qeyd olunur.
+
+```bash
+radar collectors                       # siyahı, cədvəl, çatışmayan açarlar
+radar collect ct_crtsh -p days=1       # birini indi işə sal
+radar track tiktok_account kod_satisi  # izlənən hesab əlavə et (Ayarlar-da da olar)
+```
+
+**Telegram girişi (bir dəfə):** `.env`-də `TELEGRAM_API_ID` və `TELEGRAM_API_HASH` yazıldıqdan
+sonra `docker compose run --rm api radar telegram-login` işə salın, ayrıca hesabın nömrəsini
+və Telegram-ın göndərdiyi kodu daxil edin. Sessiya `telegram` volume-da saxlanılır.
 
 ## Lokal quraşdırma
 
@@ -83,15 +111,13 @@ dəyişiklik növbəti işə düşmədə tətbiq olunur. İlkin dəyərlər `bac
 
 ## Yeni kollektor əlavə etmək
 
-1. `backend/radar/collectors/<ad>.py` faylında `FindingIn` obyektləri qaytaran funksiya yazın.
-2. İşi `track_run("<ad>")` ilə əhatə edin, hər obyekti
-   `upsert_finding(session, item, status_policy="keep")` ilə yazın — təkrarların silinməsi,
-   `last_seen` və tarixçə orada idarə olunur.
-3. `radar/tasks.py`-da `**RETRY` (eksponensial gözləmə) və `rate_limit` ilə Celery tapşırığı
-   yaradın, `beat_schedule`-a cədvəl əlavə edin.
-4. Sonda `run_linker(session, yeni_tapıntılar)` çağırın.
+1. `backend/radar/collectors/<ad>.py` faylında `Collector` sinfindən törəmə yazın: `name`,
+   `title` (paneldə görünən ad), `schedule`, `defaults`, `requires` və `FindingIn`
+   obyektləri qaytaran `collect(ctx)`.
+2. Modulu `radar/collectors/__init__.py`-da import edin.
 
-İşə düşmə **Kollektorlar** bölməsində say, xəta və müddətlə görünəcək.
+Qalanını çərçivə edir: təkrarların silinməsi, ağ siyahı, jurnal, əlaqələndirmə, Celery cədvəli
+və paneldəki sətir. Testi `backend/tests/test_collectors.py`-a əlavə edin.
 
 ## Bazanın ehtiyat nüsxəsi
 

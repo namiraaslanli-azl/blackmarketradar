@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from radar.config import get_settings
 from radar.models import Evidence, Finding
 
-EXT = {"screenshot": "png", "html": "html", "favicon": "ico", "rendered_html": "html"}
+EXT = {"screenshot": "png", "html": "html", "favicon": "ico", "rendered_html": "html", "ad_image": "jpg", "thumbnail": "jpg"}
 
 
 def store_capture(session: Session, finding: Finding, kind: str, content: bytes, *, url: str | None = None,

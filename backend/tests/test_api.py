@@ -24,3 +24,21 @@ def test_api_lists_and_details(session):
         assert any(w["value"] == "tfc.az" for w in c.get("/api/settings/whitelist").json())
     finally:
         app.dependency_overrides.clear()
+
+
+def test_collectors_and_targets_api(app_db, monkeypatch):
+    app.dependency_overrides[db] = lambda: app_db
+    try:
+        c = TestClient(app)
+        rows = {r["name"]: r for r in c.get("/api/collectors").json()}
+        assert {"ct_crtsh", "serp_google", "meta_ads", "tiktok", "instagram", "facebook", "telegram", "stores"} <= set(rows)
+        assert c.put("/api/collectors/ct_crtsh", json={"enabled": False, "params": {"days": 1}}).json() == {"ok": True}
+        assert c.put("/api/collectors/ct_crtsh", json={"params": {"nope": 1}}).status_code == 422
+        app_db.commit()
+        rows = {r["name"]: r for r in c.get("/api/collectors").json()}
+        assert rows["ct_crtsh"]["enabled"] is False and rows["ct_crtsh"]["params"]["days"] == 1
+        assert c.post("/api/settings/targets", json={"kind": "tiktok_account", "value": "https://www.tiktok.com/@kod_satisi"}).status_code == 200
+        assert [t["value"] for t in c.get("/api/settings/targets").json()] == ["kod_satisi"]
+        assert c.post("/api/settings/targets", json={"kind": "nope", "value": "x1"}).status_code == 422
+    finally:
+        app.dependency_overrides.clear()

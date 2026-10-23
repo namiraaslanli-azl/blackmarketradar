@@ -321,3 +321,111 @@ def delete_whitelist(entry_id: int, s: Session = Depends(db)):
 @app.get("/api/meta")
 def meta():
     return {"sources": SOURCES, "statuses": STATUSES}
+
+
+# --- Collectors & tracked targets (Phase 2) -------------------------------------------------
+
+def _crontab_text(c: dict) -> str:
+    return f"{c.get('minute', '*')} {c.get('hour', '*')} * * *" if c else "—"
+
+
+@app.get("/api/collectors", dependencies=[Depends(auth)])
+def collectors_list(s: Session = Depends(db)):
+    from radar.collectors import REGISTRY
+    from radar.collectors.base import effective_params
+
+    week = datetime.now(timezone.utc) - timedelta(days=7)
+    totals = {c: (f, n, e) for c, f, n, e in s.execute(
+        select(CollectorRun.collector, func.sum(CollectorRun.items_found), func.sum(CollectorRun.items_new),
+               func.sum(CollectorRun.errors)).where(CollectorRun.started_at >= week).group_by(CollectorRun.collector))}
+    last = {r.collector: r for r in s.execute(
+        select(CollectorRun).ext(distinct_on(CollectorRun.collector))
+        .order_by(CollectorRun.collector, CollectorRun.started_at.desc())).scalars()}
+    out = []
+    for name, c in REGISTRY.items():
+        enabled, params = effective_params(s, c)
+        r = last.get(name)
+        f, n, e = totals.get(name, (0, 0, 0))
+        out.append({
+            "name": name, "title": c.title, "schedule": _crontab_text(c.schedule), "enabled": enabled,
+            "params": params, "missing": c.missing_secrets(),
+            "last_run": {"status": r.status, "started_at": r.started_at, "items_found": r.items_found,
+                         "items_new": r.items_new, "errors": r.errors, "duration_ms": r.duration_ms} if r else None,
+            "week": {"found": int(f or 0), "new": int(n or 0), "errors": int(e or 0)},
+        })
+    return out
+
+
+class CollectorUpdate(BaseModel):
+    enabled: bool | None = None
+    params: dict | None = None
+
+
+@app.put("/api/collectors/{name}", dependencies=[Depends(auth)])
+def collector_update(name: str, body: CollectorUpdate, s: Session = Depends(db)):
+    from radar.collectors import REGISTRY
+    from radar.models import CollectorConfig
+
+    c = REGISTRY.get(name)
+    if not c:
+        raise HTTPException(404)
+    unknown = set(body.params or {}) - set(c.defaults)
+    if unknown:
+        raise HTTPException(422, f"unknown params: {', '.join(sorted(unknown))}")
+    cfg = s.get(CollectorConfig, name) or CollectorConfig(name=name, enabled=True, params={})
+    if body.enabled is not None:
+        cfg.enabled = body.enabled
+    if body.params:
+        cfg.params = {**(cfg.params or {}), **body.params}
+    s.add(cfg)
+    return {"ok": True}
+
+
+@app.post("/api/collectors/{name}/run", dependencies=[Depends(auth)])
+def collector_run_now(name: str):
+    from radar.collectors import REGISTRY
+    from radar.tasks import collect
+
+    if name not in REGISTRY:
+        raise HTTPException(404)
+    task = collect.delay(name, force=True)
+    return {"queued": True, "task_id": task.id}
+
+
+class TargetIn(BaseModel):
+    kind: str
+    value: str = Field(min_length=2, max_length=200)
+    note: str | None = None
+
+
+@app.get("/api/settings/targets", dependencies=[Depends(auth)])
+def targets(s: Session = Depends(db)):
+    from radar.models import TrackedTarget
+
+    return [{"id": t.id, "kind": t.kind, "value": t.value, "note": t.note, "active": t.active,
+             "last_collected_at": t.last_collected_at}
+            for t in s.scalars(select(TrackedTarget).order_by(TrackedTarget.kind, TrackedTarget.value))]
+
+
+@app.post("/api/settings/targets", dependencies=[Depends(auth)])
+def add_target(body: TargetIn, s: Session = Depends(db)):
+    from radar.models import TARGET_KINDS, TrackedTarget
+
+    if body.kind not in TARGET_KINDS:
+        raise HTTPException(422, "bad kind")
+    value = body.value.strip().lstrip("@#")
+    for prefix in ("https://", "http://", "www.", "t.me/", "tiktok.com/@", "instagram.com/", "facebook.com/"):
+        value = value.removeprefix(prefix)
+    s.execute(pg_insert(TrackedTarget).values(kind=body.kind, value=value.strip("/"), note=body.note)
+              .on_conflict_do_update(constraint="uq_tracked_kind_value", set_={"active": True}))
+    return {"ok": True}
+
+
+@app.delete("/api/settings/targets/{target_id}", dependencies=[Depends(auth)])
+def delete_target(target_id: int, s: Session = Depends(db)):
+    from radar.models import TrackedTarget
+
+    t = s.get(TrackedTarget, target_id)
+    if t:
+        s.delete(t)
+    return {"ok": True}

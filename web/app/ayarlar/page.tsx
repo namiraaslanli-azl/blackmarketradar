@@ -1,15 +1,26 @@
 import { api } from "@/lib/api";
-import { addKeyword, addWhitelist, deleteKeyword, deleteWhitelist } from "./actions";
+import { dateTime } from "@/lib/labels";
+import { addKeyword, addTarget, addWhitelist, deleteKeyword, deleteTarget, deleteWhitelist } from "./actions";
 
 interface Kw { id: number; term: string; kind: string; lang: string | null; active: boolean }
 interface Wl { id: number; kind: string; value: string; owner: string; note: string | null }
+interface Target { id: number; kind: string; value: string; note: string | null; last_collected_at: string | null }
+
+const TARGET_LABEL: Record<string, string> = {
+  meta_page: "Meta reklamçı səhifəsi (ID)", tiktok_account: "TikTok hesabı", instagram_account: "Instagram hesabı",
+  facebook_page: "Facebook səhifəsi", telegram_channel: "Telegram kanalı", hashtag: "Hashtag",
+};
 
 const KIND_LABEL: Record<string, string> = {
   generic: "Ümumi", brand: "Brend", promo: "Promo / bonus", game: "Oyun", payment: "Ödəniş",
 };
 
 export default async function SettingsPage() {
-  const [kws, wl] = await Promise.all([api<Kw[]>("/api/settings/keywords"), api<Wl[]>("/api/settings/whitelist")]);
+  const [kws, wl, targets] = await Promise.all([
+    api<Kw[]>("/api/settings/keywords"),
+    api<Wl[]>("/api/settings/whitelist"),
+    api<Target[]>("/api/settings/targets"),
+  ]);
   const grouped = Object.entries(
     kws.reduce<Record<string, Kw[]>>((acc, k) => ((acc[k.kind] ??= []).push(k), acc), {}),
   );
@@ -94,6 +105,45 @@ export default async function SettingsPage() {
           </table>
         </section>
       </div>
+
+      <section className="section">
+        <h2>İzlənilən hesablar · {targets.length}</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Kollektorlar bu hesabları hər dəfə yoxlayır. Təsdiqlənmiş hesablar avtomatik izlənir; bura əlavə olaraq
+          bildiyiniz hesabları yazın. Link və ya @ad yazmaq olar.
+        </p>
+        <form action={addTarget} className="filters">
+          <select name="kind" className="field" defaultValue="tiktok_account">
+            {Object.entries(TARGET_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <input className="field" name="value" placeholder="misal: https://www.tiktok.com/@kod_satisi" required minLength={2} style={{ flex: 1 }} />
+          <input className="field" name="note" placeholder="qeyd (istəyə bağlı)" />
+          <button className="btn" type="submit">Əlavə et</button>
+        </form>
+        <div className="table-wrap">
+          <table className="t">
+            <thead>
+              <tr><th>Növ</th><th>Hesab</th><th className="hide-sm">Qeyd</th><th>Son yoxlama</th><th /></tr>
+            </thead>
+            <tbody>
+              {targets.map((t) => (
+                <tr key={t.id}>
+                  <td className="muted">{TARGET_LABEL[t.kind] ?? t.kind}</td>
+                  <td className="mono">{t.value}</td>
+                  <td className="muted hide-sm">{t.note}</td>
+                  <td>{t.last_collected_at ? dateTime(t.last_collected_at) : <span className="faint">hələ yox</span>}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <form action={deleteTarget}>
+                      <input type="hidden" name="id" value={t.id} />
+                      <button className="btn link" type="submit">sil</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }

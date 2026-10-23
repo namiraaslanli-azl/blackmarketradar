@@ -8,6 +8,7 @@ x-backend: &backend
     EVIDENCE_DIR: /data/evidence
   volumes:
     - evidence:/data/evidence
+    - telegram:/data/telegram
     - ./data/import:/data/import:ro
   depends_on:
     db: { condition: service_healthy }
@@ -50,6 +51,10 @@ services:
     <<: *backend
     command: celery -A radar.tasks beat --loglevel=INFO --schedule /tmp/celerybeat-schedule
 
+  certstream:
+    <<: *backend
+    command: radar certstream
+
   web:
     build: ./web
     environment:
@@ -76,3 +81,4 @@ volumes:
   redisdata:
   evidence:
   caddydata:
+  telegram:

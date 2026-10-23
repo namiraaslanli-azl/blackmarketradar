@@ -32,3 +32,18 @@ export async function deleteWhitelist(form: FormData) {
   await api(`/api/settings/whitelist/${Number(form.get("id"))}`, { method: "DELETE" });
   revalidatePath("/ayarlar");
 }
+
+export async function addTarget(form: FormData) {
+  const value = String(form.get("value") ?? "").trim();
+  if (value.length < 2) return;
+  await api("/api/settings/targets", {
+    method: "POST",
+    body: JSON.stringify({ kind: String(form.get("kind")), value, note: String(form.get("note") ?? "") || null }),
+  });
+  revalidatePath("/ayarlar");
+}
+
+export async function deleteTarget(form: FormData) {
+  await api(`/api/settings/targets/${Number(form.get("id"))}`, { method: "DELETE" });
+  revalidatePath("/ayarlar");
+}

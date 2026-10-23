@@ -25,6 +25,12 @@ class Settings(BaseSettings):
 
     api_token: str = ""  # shared secret between web and api until Phase 5 auth
 
+    # collectors
+    ocr_enabled: bool = True
+    ocr_langs: str = "aze+rus+tur+eng"
+    telegram_session_path: Path = Path("/data/telegram/radar.session")
+    certstream_url: str = "wss://certstream.calidog.io/"
+
     # secrets used from Phase 2 on
     apify_token: str = ""
     anthropic_api_key: str = ""
